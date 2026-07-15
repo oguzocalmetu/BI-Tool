@@ -77,7 +77,7 @@ async def update_dash(
             widget_type=w.get("widget_type", "column"),
             title=w.get("title", "Widget"),
             query_sql=w.get("query_sql", ""),
-            config_json=w.get("chart_config", {}),
+            chart_config=w.get("chart_config", {}),
             position_json=w.get("position_json", {"x": 0, "y": 0, "w": 4, "h": 4}),
         )
         db.add(widget)
