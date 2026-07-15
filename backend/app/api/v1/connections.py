@@ -52,6 +52,25 @@ async def conn_columns(conn_id: int, table: str, schema: str = "public", current
     cols = await get_columns(conn_id, table, schema, db)
     return {"columns": cols}
 
+@router.post("/test-preview")
+async def test_connection_preview(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+):
+    """Test a connection config without saving it (used by ConnectionsPage form)."""
+    from app.connectors.registry import get_connector
+    # Frontend sends 'type' field (e.g. "postgresql")
+    connector_type = body.get("type") or body.get("connector_type") or body.get("db_type", "postgresql")
+    try:
+        connector = get_connector(connector_type, body)
+        success, error = await connector.test_connection()
+        if success:
+            return {"success": True, "message": "Bağlantı başarılı"}
+        else:
+            return {"success": False, "message": error or "Bağlantı başarısız"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @router.post("/upload-csv")
 async def upload_csv(
     file: UploadFile = File(...),

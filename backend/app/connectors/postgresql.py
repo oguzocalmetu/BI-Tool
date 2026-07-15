@@ -5,24 +5,37 @@ import asyncpg
 from app.connectors.base import BaseConnector, TableInfo, ColumnInfo, QueryResult
 
 class PostgreSQLConnector(BaseConnector):
-    def _build_dsn(self) -> str:
+    def _conn_kwargs(self) -> dict:
+        """Build asyncpg kwargs — avoids DSN ssl= parameter bug."""
         c = self.config
-        ssl = "require" if c.get("ssl") else "prefer"
-        return f"postgresql://{c['username']}:{c['password']}@{c['host']}:{c.get('port', 5432)}/{c['database_name']}?ssl={ssl}"
+        ssl_val = c.get("ssl") or (c.get("extra_config") or {}).get("ssl")
+        kwargs = dict(
+            host=c.get("host", "localhost"),
+            port=int(c.get("port", 5432)),
+            database=c.get("database_name", c.get("database", "postgres")),
+            user=c.get("username", "postgres"),
+            password=c.get("password", ""),
+            timeout=10,
+        )
+        if ssl_val and str(ssl_val).lower() not in ("disable", "false", "0", ""):
+            kwargs["ssl"] = ssl_val
+        return kwargs
+
+    async def _connect(self):
+        return await asyncpg.connect(**self._conn_kwargs())
 
     async def test_connection(self) -> tuple[bool, Optional[str]]:
         try:
             start = time.time()
-            conn = await asyncpg.connect(self._build_dsn(), timeout=10)
+            conn = await self._connect()
             await conn.fetchval("SELECT 1")
             await conn.close()
-            latency = int((time.time() - start) * 1000)
             return True, None
         except Exception as e:
             return False, str(e)
 
     async def get_schemas(self) -> list[str]:
-        conn = await asyncpg.connect(self._build_dsn())
+        conn = await self._connect()
         try:
             rows = await conn.fetch("""
                 SELECT schema_name FROM information_schema.schemata
@@ -34,7 +47,7 @@ class PostgreSQLConnector(BaseConnector):
             await conn.close()
 
     async def get_tables(self, schema: str = "public") -> list[TableInfo]:
-        conn = await asyncpg.connect(self._build_dsn())
+        conn = await self._connect()
         try:
             rows = await conn.fetch("""
                 SELECT table_name, table_type
@@ -47,7 +60,7 @@ class PostgreSQLConnector(BaseConnector):
             await conn.close()
 
     async def get_columns(self, table: str, schema: str = "public") -> list[ColumnInfo]:
-        conn = await asyncpg.connect(self._build_dsn())
+        conn = await self._connect()
         try:
             rows = await conn.fetch("""
                 SELECT column_name, data_type, is_nullable, column_default
@@ -65,7 +78,7 @@ class PostgreSQLConnector(BaseConnector):
             await conn.close()
 
     async def execute_query(self, sql: str, params: dict = None, timeout: int = 30) -> QueryResult:
-        conn = await asyncpg.connect(self._build_dsn())
+        conn = await self._connect()
         start = time.time()
         try:
             async with asyncio.timeout(timeout):
