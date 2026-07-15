@@ -1,26 +1,21 @@
-import { useState, useCallback, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import GridLayout, { Layout } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import {
-  Plus, Save, Eye, X, Settings2, Database, BarChart2,
-  ChevronRight, Play, Trash2, Copy, GripVertical,
+  Plus, Save, X, Settings2, Database, BarChart2,
+  ChevronRight, Play, Trash2, Copy, GripVertical, ArrowLeft, Loader2,
 } from 'lucide-react'
-import { api } from '@/lib/api'
+import api from '@/lib/api'
 import ChartWidget from '@/components/charts/ChartWidget'
 import type { Dataset, ColumnProfile, WidgetType, BuilderWidget, ChartConfig, QueryResult } from '@/types'
 import { v4 as uuidv4 } from 'uuid'
 
 // ─── Chart type catalog ────────────────────────────────────────────────────────
 
-interface ChartTypeDef {
-  type: WidgetType
-  label: string
-  icon: string
-  group: string
-}
+interface ChartTypeDef { type: WidgetType; label: string; icon: string; group: string }
 
 const CHART_TYPES: ChartTypeDef[] = [
   { type: 'column',         label: 'Sütun',         icon: '📊', group: 'Cartesian' },
@@ -47,41 +42,29 @@ const CHART_TYPES: ChartTypeDef[] = [
   { type: 'map',            label: 'Harita',         icon: '🗺️', group: 'Composite' },
 ]
 
-// ─── Semantic type badge ───────────────────────────────────────────────────────
+// ─── Semantic badge ────────────────────────────────────────────────────────────
 
 function SemanticBadge({ type }: { type?: string }) {
   const map: Record<string, string> = {
-    metric:    'bg-blue-100 text-blue-700',
-    dimension: 'bg-green-100 text-green-700',
-    date:      'bg-purple-100 text-purple-700',
-    id:        'bg-gray-100 text-gray-500',
-    text:      'bg-amber-100 text-amber-700',
+    metric: 'bg-blue-100 text-blue-700', dimension: 'bg-green-100 text-green-700',
+    date: 'bg-purple-100 text-purple-700', id: 'bg-gray-100 text-gray-500', text: 'bg-amber-100 text-amber-700',
   }
   const cls = map[type || ''] || 'bg-gray-100 text-gray-500'
-  return (
-    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>
-      {type || '?'}
-    </span>
-  )
+  return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${cls}`}>{type || '?'}</span>
 }
 
 // ─── Data Model Panel ──────────────────────────────────────────────────────────
 
-function DataModelPanel({
-  datasets, selectedDatasetId, onSelectDataset, columns,
-}: {
-  datasets: Dataset[]
-  selectedDatasetId: number | null
-  onSelectDataset: (id: number) => void
-  columns: ColumnProfile[]
+function DataModelPanel({ datasets, selectedDatasetId, onSelectDataset, columns }: {
+  datasets: Dataset[]; selectedDatasetId: number | null
+  onSelectDataset: (id: number) => void; columns: ColumnProfile[]
 }) {
   const groups = {
-    Metrics:    columns.filter(c => c.semantic_type === 'metric'),
-    Dimensions: columns.filter(c => c.semantic_type === 'dimension'),
-    Dates:      columns.filter(c => c.semantic_type === 'date'),
-    Others:     columns.filter(c => !['metric','dimension','date'].includes(c.semantic_type || '')),
+    Metrikler:   columns.filter(c => c.semantic_type === 'metric'),
+    Boyutlar:    columns.filter(c => c.semantic_type === 'dimension'),
+    Tarihler:    columns.filter(c => c.semantic_type === 'date'),
+    Diğer:       columns.filter(c => !['metric','dimension','date'].includes(c.semantic_type || '')),
   }
-
   return (
     <aside className="w-60 flex-shrink-0 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
       <div className="px-3 py-3 border-b border-gray-200">
@@ -95,12 +78,9 @@ function DataModelPanel({
           className="w-full text-xs border border-gray-200 rounded-md px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
         >
           <option value="">Dataset seç…</option>
-          {datasets.map(d => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
+          {datasets.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
       </div>
-
       <div className="flex-1 overflow-auto p-2 space-y-2">
         {(Object.entries(groups) as [string, ColumnProfile[]][]).map(([group, cols]) => {
           if (!cols.length) return null
@@ -108,12 +88,9 @@ function DataModelPanel({
             <div key={group}>
               <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-1 mb-1">{group}</p>
               {cols.map(col => (
-                <div
-                  key={col.column_name}
-                  draggable
+                <div key={col.column_name} draggable
                   onDragStart={e => e.dataTransfer.setData('text/column', col.column_name)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 cursor-grab active:cursor-grabbing group"
-                >
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 cursor-grab active:cursor-grabbing group">
                   <GripVertical className="w-3 h-3 text-gray-300 flex-shrink-0" />
                   <span className="flex-1 text-xs text-gray-700 truncate font-mono">{col.column_name}</span>
                   <SemanticBadge type={col.semantic_type} />
@@ -122,27 +99,20 @@ function DataModelPanel({
             </div>
           )
         })}
-        {!columns.length && selectedDatasetId && (
-          <p className="text-xs text-gray-400 text-center mt-4">Sütunlar yükleniyor…</p>
-        )}
-        {!selectedDatasetId && (
-          <p className="text-xs text-gray-400 text-center mt-4">Dataset seçin</p>
-        )}
+        {!columns.length && selectedDatasetId && <p className="text-xs text-gray-400 text-center mt-4">Yükleniyor…</p>}
+        {!selectedDatasetId && <p className="text-xs text-gray-400 text-center mt-4">Dataset seçin</p>}
       </div>
     </aside>
   )
 }
 
-// ─── Chart Type Picker Modal ──────────────────────────────────────────────────
+// ─── Chart Type Picker ────────────────────────────────────────────────────────
 
-function ChartTypePicker({ onSelect, onClose }: { onSelect: (type: WidgetType) => void; onClose: () => void }) {
+function ChartTypePicker({ onSelect, onClose }: { onSelect: (t: WidgetType) => void; onClose: () => void }) {
   const [search, setSearch] = useState('')
   const filtered = CHART_TYPES.filter(ct =>
-    ct.label.toLowerCase().includes(search.toLowerCase()) ||
-    ct.type.includes(search.toLowerCase())
-  )
+    ct.label.toLowerCase().includes(search.toLowerCase()) || ct.type.includes(search.toLowerCase()))
   const groups = [...new Set(CHART_TYPES.map(c => c.group))]
-
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-[560px] max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -151,14 +121,8 @@ function ChartTypePicker({ onSelect, onClose }: { onSelect: (type: WidgetType) =
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-3 border-b border-gray-100">
-          <input
-            autoFocus
-            type="text"
-            placeholder="Ara…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
+          <input autoFocus type="text" placeholder="Ara…" value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
         </div>
         <div className="flex-1 overflow-auto p-3 space-y-4">
           {groups.map(group => {
@@ -169,11 +133,8 @@ function ChartTypePicker({ onSelect, onClose }: { onSelect: (type: WidgetType) =
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">{group}</p>
                 <div className="grid grid-cols-4 gap-2">
                   {items.map(ct => (
-                    <button
-                      key={ct.type}
-                      onClick={() => { onSelect(ct.type); onClose() }}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors"
-                    >
+                    <button key={ct.type} onClick={() => { onSelect(ct.type); onClose() }}
+                      className="flex flex-col items-center gap-1.5 p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition-colors">
                       <span className="text-xl">{ct.icon}</span>
                       <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{ct.label}</span>
                     </button>
@@ -190,33 +151,28 @@ function ChartTypePicker({ onSelect, onClose }: { onSelect: (type: WidgetType) =
 
 // ─── Widget Config Panel ──────────────────────────────────────────────────────
 
-function WidgetConfigPanel({
-  widget, columns, onUpdate, onClose, onDelete,
-}: {
-  widget: BuilderWidget
-  columns: ColumnProfile[]
+function WidgetConfigPanel({ widget, columns, onUpdate, onClose, onDelete }: {
+  widget: BuilderWidget; columns: ColumnProfile[]
   onUpdate: (id: string, patch: Partial<BuilderWidget>) => void
-  onClose: () => void
-  onDelete: (id: string) => void
+  onClose: () => void; onDelete: (id: string) => void
 }) {
   const [previewResult, setPreviewResult] = useState<QueryResult | null>(null)
   const [running, setRunning] = useState(false)
   const [showTypePicker, setShowTypePicker] = useState(false)
+  const [sqlError, setSqlError] = useState('')
 
   const colNames = columns.map(c => c.column_name)
-
   const typeLabel = CHART_TYPES.find(ct => ct.type === widget.widget_type)?.label || widget.widget_type
 
   const runQuery = async () => {
-    setRunning(true)
+    if (!widget.query_sql?.trim()) { setSqlError('SQL boş olamaz.'); return }
+    setRunning(true); setSqlError('')
     try {
       const r = await api.post('/query/sql', { sql: widget.query_sql })
       setPreviewResult(r.data)
     } catch (e: any) {
-      alert('SQL hatası: ' + (e.response?.data?.detail || e.message))
-    } finally {
-      setRunning(false)
-    }
+      setSqlError(e.response?.data?.detail || e.message || 'Sorgu hatası')
+    } finally { setRunning(false) }
   }
 
   const set = (cfg: Partial<ChartConfig>) =>
@@ -225,30 +181,23 @@ function WidgetConfigPanel({
   return (
     <>
       <aside className="w-72 flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
-        {/* Header */}
         <div className="flex items-center justify-between px-3 py-3 border-b border-gray-200">
           <div className="flex items-center gap-2">
             <Settings2 className="w-4 h-4 text-gray-500" />
             <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Widget Ayarları</span>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => onDelete(widget.id)} className="p-1 text-gray-400 hover:text-red-500 rounded">
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded">
-              <X className="w-3.5 h-3.5" />
-            </button>
+          <div className="flex gap-1">
+            <button onClick={() => onDelete(widget.id)} className="p-1 text-gray-400 hover:text-red-500 rounded"><Trash2 className="w-3.5 h-3.5" /></button>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded"><X className="w-3.5 h-3.5" /></button>
           </div>
         </div>
 
         <div className="flex-1 overflow-auto p-3 space-y-4">
-          {/* Chart type */}
+          {/* Type */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Grafik Tipi</label>
-            <button
-              onClick={() => setShowTypePicker(true)}
-              className="w-full flex items-center justify-between px-3 py-2 text-sm border border-gray-200 rounded-lg hover:border-blue-400 transition-colors"
-            >
+            <button onClick={() => setShowTypePicker(true)}
+              className="w-full flex items-center justify-between px-3 py-2 text-sm border border-gray-200 rounded-lg hover:border-blue-400 transition-colors">
               <span className="text-gray-700">{typeLabel}</span>
               <ChevronRight className="w-3.5 h-3.5 text-gray-400" />
             </button>
@@ -257,30 +206,21 @@ function WidgetConfigPanel({
           {/* Title */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Başlık</label>
-            <input
-              value={widget.title}
-              onChange={e => onUpdate(widget.id, { title: e.target.value })}
-              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
+            <input value={widget.title} onChange={e => onUpdate(widget.id, { title: e.target.value })}
+              className="w-full px-2.5 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
 
-          {/* SQL Editor */}
+          {/* SQL */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">SQL</label>
-            <textarea
-              value={widget.query_sql}
-              onChange={e => onUpdate(widget.id, { query_sql: e.target.value })}
-              rows={6}
-              spellCheck={false}
+            <textarea value={widget.query_sql} onChange={e => onUpdate(widget.id, { query_sql: e.target.value })}
+              rows={6} spellCheck={false}
               className="w-full px-2.5 py-2 text-xs font-mono border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none bg-gray-50"
-              placeholder="SELECT category, SUM(amount) as revenue&#10;FROM orders&#10;GROUP BY category"
-            />
-            <button
-              onClick={runQuery}
-              disabled={running}
-              className="mt-1 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-            >
-              <Play className="w-3 h-3" />
+              placeholder="SELECT category, SUM(amount) as revenue&#10;FROM orders&#10;GROUP BY category" />
+            {sqlError && <p className="text-xs text-red-600 mt-1">{sqlError}</p>}
+            <button onClick={runQuery} disabled={running}
+              className="mt-1.5 flex items-center gap-1.5 text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
+              {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
               {running ? 'Çalışıyor…' : 'Sorguyu Çalıştır'}
             </button>
           </div>
@@ -289,14 +229,11 @@ function WidgetConfigPanel({
           {['column','stacked_column','bar','stacked_bar','line','area','combo','histogram','scatter','bubble','heatmap'].includes(widget.widget_type) && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-gray-600">Eksen Eşleştirme</p>
-              {[['x_key', 'X Ekseni'], ['y_key', 'Y Ekseni']].map(([key, lbl]) => (
+              {[['x_key','X Ekseni'],['y_key','Y Ekseni']].map(([key, lbl]) => (
                 <div key={key}>
                   <label className="block text-[10px] text-gray-500 mb-0.5">{lbl}</label>
-                  <select
-                    value={(widget.chart_config as any)?.[key] || ''}
-                    onChange={e => set({ [key]: e.target.value })}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                  >
+                  <select value={(widget.chart_config as any)?.[key] || ''} onChange={e => set({ [key]: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
                     <option value="">— otomatik —</option>
                     {colNames.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -305,11 +242,8 @@ function WidgetConfigPanel({
               {widget.widget_type === 'bubble' && (
                 <div>
                   <label className="block text-[10px] text-gray-500 mb-0.5">Boyut (size_key)</label>
-                  <select
-                    value={widget.chart_config?.size_key || ''}
-                    onChange={e => set({ size_key: e.target.value })}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none bg-white"
-                  >
+                  <select value={widget.chart_config?.size_key || ''} onChange={e => set({ size_key: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none bg-white">
                     <option value="">— otomatik —</option>
                     {colNames.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -318,18 +252,15 @@ function WidgetConfigPanel({
             </div>
           )}
 
-          {/* Pie / treemap / sankey */}
+          {/* Label/Value mapping */}
           {['pie','donut_chart','treemap','sunburst','sankey'].includes(widget.widget_type) && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-gray-600">Değer Eşleştirme</p>
-              {[['label_key','Etiket'], ['value_key','Değer']].map(([key, lbl]) => (
+              {[['label_key','Etiket'],['value_key','Değer']].map(([key, lbl]) => (
                 <div key={key}>
                   <label className="block text-[10px] text-gray-500 mb-0.5">{lbl}</label>
-                  <select
-                    value={(widget.chart_config as any)?.[key] || ''}
-                    onChange={e => set({ [key]: e.target.value })}
-                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none bg-white"
-                  >
+                  <select value={(widget.chart_config as any)?.[key] || ''} onChange={e => set({ [key]: e.target.value })}
+                    className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none bg-white">
                     <option value="">— otomatik —</option>
                     {colNames.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
@@ -341,13 +272,10 @@ function WidgetConfigPanel({
           {/* Format */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Format</label>
-            <select
-              value={widget.chart_config?.format_type || ''}
-              onChange={e => set({ format_type: e.target.value as any })}
-              className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none bg-white"
-            >
+            <select value={widget.chart_config?.format_type || ''} onChange={e => set({ format_type: e.target.value as any })}
+              className="w-full px-2 py-1.5 text-xs border border-gray-200 rounded-md focus:outline-none bg-white">
               <option value="">Sayı</option>
-              <option value="currency">Para (TL/USD)</option>
+              <option value="currency">Para (₺)</option>
               <option value="percent">Yüzde (%)</option>
             </select>
           </div>
@@ -359,10 +287,7 @@ function WidgetConfigPanel({
                 Önizleme ({previewResult.row_count} satır, {previewResult.execution_time_ms}ms)
               </p>
               <div className="border border-gray-200 rounded-lg overflow-hidden" style={{ height: 160 }}>
-                <ChartWidget
-                  widget={{ ...widget, id: -1, dashboard_id: -1 } as any}
-                  previewResult={previewResult}
-                />
+                <ChartWidget widget={{ ...widget, id: -1, dashboard_id: -1 } as any} previewResult={previewResult} />
               </div>
             </div>
           )}
@@ -370,52 +295,37 @@ function WidgetConfigPanel({
       </aside>
 
       {showTypePicker && (
-        <ChartTypePicker
-          onSelect={t => onUpdate(widget.id, { widget_type: t })}
-          onClose={() => setShowTypePicker(false)}
-        />
+        <ChartTypePicker onSelect={t => onUpdate(widget.id, { widget_type: t })} onClose={() => setShowTypePicker(false)} />
       )}
     </>
   )
 }
 
-// ─── Canvas widget card ────────────────────────────────────────────────────────
+// ─── Canvas Widget Card ───────────────────────────────────────────────────────
 
-function CanvasWidgetCard({
-  widget, isSelected, onSelect, onDuplicate, onDelete,
-}: {
-  widget: BuilderWidget
-  isSelected: boolean
-  onSelect: () => void
-  onDuplicate: () => void
-  onDelete: () => void
+function CanvasWidgetCard({ widget, isSelected, onSelect, onDuplicate, onDelete }: {
+  widget: BuilderWidget; isSelected: boolean
+  onSelect: () => void; onDuplicate: () => void; onDelete: () => void
 }) {
   const typeDef = CHART_TYPES.find(ct => ct.type === widget.widget_type)
   return (
-    <div
-      onClick={onSelect}
+    <div onClick={onSelect}
       className={`h-full flex flex-col bg-white border-2 rounded-xl overflow-hidden cursor-pointer transition-all ${
         isSelected ? 'border-blue-500 shadow-lg shadow-blue-100' : 'border-gray-200 hover:border-blue-300'
       }`}
     >
-      {/* Card header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-100 bg-gray-50 drag-handle cursor-grab active:cursor-grabbing">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="text-sm">{typeDef?.icon}</span>
           <span className="text-xs font-medium text-gray-700 truncate">{widget.title || 'Adsız Widget'}</span>
         </div>
         {isSelected && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            <button onClick={e => { e.stopPropagation(); onDuplicate() }} className="p-0.5 text-gray-400 hover:text-blue-600" title="Kopyala">
-              <Copy className="w-3 h-3" />
-            </button>
-            <button onClick={e => { e.stopPropagation(); onDelete() }} className="p-0.5 text-gray-400 hover:text-red-500" title="Sil">
-              <Trash2 className="w-3 h-3" />
-            </button>
+            <button onClick={e => { e.stopPropagation(); onDuplicate() }} className="p-0.5 text-gray-400 hover:text-blue-600" title="Kopyala"><Copy className="w-3 h-3" /></button>
+            <button onClick={e => { e.stopPropagation(); onDelete() }} className="p-0.5 text-gray-400 hover:text-red-500" title="Sil"><Trash2 className="w-3 h-3" /></button>
           </div>
         )}
       </div>
-      {/* Content area — placeholder (no live query in builder canvas) */}
       <div className="flex-1 flex items-center justify-center text-gray-300">
         <div className="text-center">
           <span className="text-3xl">{typeDef?.icon}</span>
@@ -430,8 +340,10 @@ function CanvasWidgetCard({
 
 export default function DashboardBuilderPage() {
   const navigate = useNavigate()
+  const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const initDatasetId = searchParams.get('dataset') ? Number(searchParams.get('dataset')) : null
+  const isEditing = !!id
 
   const [name, setName] = useState('Yeni Dashboard')
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(initDatasetId)
@@ -440,7 +352,7 @@ export default function DashboardBuilderPage() {
   const [selectedWidgetId, setSelectedWidgetId] = useState<string | null>(null)
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [containerWidth, setContainerWidth] = useState(900)
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const [loadingExisting, setLoadingExisting] = useState(isEditing)
 
   const { data: datasets = [] } = useQuery<Dataset[]>({
     queryKey: ['datasets'],
@@ -453,34 +365,74 @@ export default function DashboardBuilderPage() {
     enabled: !!selectedDatasetId,
   })
 
+  // Load existing dashboard when editing
+  useEffect(() => {
+    if (!id) return
+    setLoadingExisting(true)
+    api.get(`/dashboards/${id}`).then(res => {
+      const d = res.data
+      const dash = d.dashboard || d
+      const existingWidgets: any[] = d.widgets || []
+      setName(dash.name || 'Dashboard')
+      if (dash.dataset_id) setSelectedDatasetId(dash.dataset_id)
+      const bw: BuilderWidget[] = existingWidgets.map(w => ({
+        id: String(w.id),
+        widget_type: w.widget_type,
+        title: w.title,
+        query_sql: w.query_sql || '',
+        chart_config: w.config_json || w.chart_config || {},
+        position: {
+          x: w.position_json?.x ?? 0,
+          y: w.position_json?.y ?? 0,
+          w: w.position_json?.w ?? 4,
+          h: w.position_json?.h ?? 4,
+        },
+      }))
+      setWidgets(bw)
+      setLayout(bw.map(w => ({ i: w.id, ...w.position })))
+    }).catch(err => {
+      console.error('Dashboard yüklenemedi:', err)
+    }).finally(() => setLoadingExisting(false))
+  }, [id])
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const payload = {
-        name, dataset_id: selectedDatasetId,
+        name,
+        dataset_id: selectedDatasetId,
         widgets: widgets.map(w => ({
-          widget_type: w.widget_type, title: w.title,
-          query_sql: w.query_sql, chart_config: w.chart_config,
+          widget_type: w.widget_type,
+          title: w.title,
+          query_sql: w.query_sql,
+          chart_config: w.chart_config,
           position_json: w.position,
         })),
       }
-      const r = await api.post('/dashboards', payload)
-      return r.data
+      if (isEditing) {
+        // Update existing: delete+recreate widgets via PUT
+        const r = await api.put(`/dashboards/${id}`, payload)
+        return r.data
+      } else {
+        const r = await api.post('/dashboards', payload)
+        return r.data
+      }
     },
-    onSuccess: (d) => navigate(`/dashboards/${d.id}`),
+    onSuccess: d => navigate(`/dashboards/${d.id || id}`),
   })
 
   const addWidget = useCallback((type: WidgetType) => {
-    const id = uuidv4()
+    const wid = uuidv4()
     const x = (widgets.length * 2) % 12
     const y = Math.floor(widgets.length / 6) * 4
-    const newWidget: BuilderWidget = {
-      id, widget_type: type, title: CHART_TYPES.find(ct => ct.type === type)?.label || type,
+    const nw: BuilderWidget = {
+      id: wid, widget_type: type,
+      title: CHART_TYPES.find(ct => ct.type === type)?.label || type,
       query_sql: 'SELECT * FROM table_name LIMIT 100',
       chart_config: {}, position: { x, y, w: 4, h: 4 },
     }
-    setWidgets(prev => [...prev, newWidget])
-    setLayout(prev => [...prev, { i: id, x, y, w: 4, h: 4 }])
-    setSelectedWidgetId(id)
+    setWidgets(prev => [...prev, nw])
+    setLayout(prev => [...prev, { i: wid, x, y, w: 4, h: 4 }])
+    setSelectedWidgetId(wid)
   }, [widgets.length])
 
   const updateWidget = useCallback((id: string, patch: Partial<BuilderWidget>) => {
@@ -496,10 +448,10 @@ export default function DashboardBuilderPage() {
   const duplicateWidget = useCallback((id: string) => {
     const src = widgets.find(w => w.id === id)
     if (!src) return
-    const newId = uuidv4()
-    const newW = { ...src, id: newId, title: src.title + ' (kopya)', position: { ...src.position, x: (src.position.x + 4) % 12, y: src.position.y + 4 } }
-    setWidgets(prev => [...prev, newW])
-    setLayout(prev => [...prev, { i: newId, x: newW.position.x, y: newW.position.y, w: newW.position.w, h: newW.position.h }])
+    const nid = uuidv4()
+    const nw = { ...src, id: nid, title: src.title + ' (kopya)', position: { ...src.position, x: (src.position.x + 4) % 12, y: src.position.y + 4 } }
+    setWidgets(prev => [...prev, nw])
+    setLayout(prev => [...prev, { i: nid, x: nw.position.x, y: nw.position.y, w: nw.position.w, h: nw.position.h }])
   }, [widgets])
 
   const onLayoutChange = useCallback((newLayout: Layout[]) => {
@@ -512,36 +464,61 @@ export default function DashboardBuilderPage() {
   }, [])
 
   const selectedWidget = widgets.find(w => w.id === selectedWidgetId) || null
-
-  // Measure canvas width
   const measuredRef = useCallback((node: HTMLDivElement | null) => {
     if (node) setContainerWidth(node.getBoundingClientRect().width)
   }, [])
 
+  if (loadingExisting) return (
+    <div className="flex items-center justify-center h-screen bg-gray-50">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+        <p className="text-sm text-gray-500">Dashboard yükleniyor…</p>
+      </div>
+    </div>
+  )
+
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Top bar */}
+      {/* ── Top bar ── */}
       <header className="flex items-center gap-3 px-4 py-2.5 bg-white border-b border-gray-200 flex-shrink-0">
-        <BarChart2 className="w-5 h-5 text-blue-600" />
+        {/* Back button */}
+        <button
+          onClick={() => navigate('/dashboards')}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+          title="Dashboardlara dön"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="hidden sm:inline">Geri</span>
+        </button>
+
+        <div className="w-px h-5 bg-gray-200" />
+
+        <BarChart2 className="w-5 h-5 text-blue-600 flex-shrink-0" />
         <input
           value={name}
           onChange={e => setName(e.target.value)}
-          className="text-sm font-semibold text-gray-900 bg-transparent border-b border-dashed border-gray-300 focus:outline-none focus:border-blue-500 w-56"
+          className="text-sm font-semibold text-gray-900 bg-transparent border-b border-dashed border-gray-300 focus:outline-none focus:border-blue-500 w-52 min-w-0"
+          placeholder="Dashboard adı…"
         />
+        {isEditing && (
+          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">Düzenleniyor</span>
+        )}
+
         <div className="flex-1" />
+
         <button
           onClick={() => setShowTypePicker(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <Plus className="w-4 h-4" /> Widget Ekle
         </button>
         <button
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          <Save className="w-4 h-4" />
-          {saveMutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+          {saveMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {saveMutation.isPending ? 'Kaydediliyor…' : isEditing ? 'Güncelle' : 'Kaydet'}
         </button>
       </header>
 
@@ -558,10 +535,7 @@ export default function DashboardBuilderPage() {
         <main
           ref={measuredRef}
           className="flex-1 overflow-auto bg-gray-100 p-4"
-          onDrop={e => {
-            const col = e.dataTransfer.getData('text/column')
-            if (col) addWidget('column')
-          }}
+          onDrop={e => { const col = e.dataTransfer.getData('text/column'); if (col) addWidget('column') }}
           onDragOver={e => e.preventDefault()}
         >
           {widgets.length === 0 ? (
@@ -572,14 +546,11 @@ export default function DashboardBuilderPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Dashboard boş</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  "Widget Ekle" butonuna tıklayın veya<br />
-                  sol panelden bir sütunu sürükleyin
+                  "Widget Ekle" butonuna tıklayın veya<br />sol panelden bir sütunu sürükleyin
                 </p>
               </div>
-              <button
-                onClick={() => setShowTypePicker(true)}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
+              <button onClick={() => setShowTypePicker(true)}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                 <Plus className="w-4 h-4" /> İlk Widget'ı Ekle
               </button>
             </div>
@@ -622,12 +593,8 @@ export default function DashboardBuilderPage() {
         )}
       </div>
 
-      {/* Chart type picker modal */}
       {showTypePicker && (
-        <ChartTypePicker
-          onSelect={addWidget}
-          onClose={() => setShowTypePicker(false)}
-        />
+        <ChartTypePicker onSelect={addWidget} onClose={() => setShowTypePicker(false)} />
       )}
     </div>
   )
