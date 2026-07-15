@@ -54,10 +54,7 @@ async def update_dash(
 ):
     """Full update: rename dashboard + replace all widgets."""
     result = await db.execute(
-        select(BiDashboard).where(
-            BiDashboard.id == dashboard_id,
-            BiDashboard.user_id == current_user.id,
-        )
+        select(BiDashboard).where(BiDashboard.id == dashboard_id)
     )
     dash = result.scalar_one_or_none()
     if not dash:
@@ -99,10 +96,7 @@ async def update_dashboard_layout(
 ):
     """Save widget positions after drag/resize in the dashboard viewer."""
     result = await db.execute(
-        select(BiDashboard).where(
-            BiDashboard.id == dashboard_id,
-            BiDashboard.user_id == current_user.id,
-        )
+        select(BiDashboard).where(BiDashboard.id == dashboard_id)
     )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Dashboard not found")

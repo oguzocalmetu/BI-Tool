@@ -21,6 +21,8 @@ export default function DashboardViewPage() {
   const { data, isLoading } = useQuery<any>({
     queryKey: ['dashboard-detail', id],
     queryFn: () => api.get(`/dashboards/${id}`).then(r => r.data),
+    refetchOnMount: true,
+    staleTime: 0,
   })
 
   useEffect(() => {

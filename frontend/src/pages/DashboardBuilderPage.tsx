@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import GridLayout, { Layout } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
@@ -340,6 +340,7 @@ function CanvasWidgetCard({ widget, isSelected, onSelect, onDuplicate, onDelete 
 
 export default function DashboardBuilderPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const initDatasetId = searchParams.get('dataset') ? Number(searchParams.get('dataset')) : null
@@ -353,6 +354,7 @@ export default function DashboardBuilderPage() {
   const [showTypePicker, setShowTypePicker] = useState(false)
   const [containerWidth, setContainerWidth] = useState(900)
   const [loadingExisting, setLoadingExisting] = useState(isEditing)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const { data: datasets = [] } = useQuery<Dataset[]>({
     queryKey: ['datasets'],
@@ -397,6 +399,7 @@ export default function DashboardBuilderPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      setSaveError(null)
       const payload = {
         name,
         dataset_id: selectedDatasetId,
@@ -409,7 +412,6 @@ export default function DashboardBuilderPage() {
         })),
       }
       if (isEditing) {
-        // Update existing: delete+recreate widgets via PUT
         const r = await api.put(`/dashboards/${id}`, payload)
         return r.data
       } else {
@@ -417,7 +419,17 @@ export default function DashboardBuilderPage() {
         return r.data
       }
     },
-    onSuccess: d => navigate(`/dashboards/${d.id || id}`),
+    onSuccess: d => {
+      const targetId = d.id || id
+      // Invalidate cache so DashboardViewPage fetches fresh data
+      queryClient.invalidateQueries({ queryKey: ['dashboards'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard-detail', String(targetId)] })
+      navigate(`/dashboards/${targetId}`)
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || err?.message || 'Kaydetme başarısız'
+      setSaveError(msg)
+    },
   })
 
   const addWidget = useCallback((type: WidgetType) => {
@@ -512,6 +524,11 @@ export default function DashboardBuilderPage() {
         >
           <Plus className="w-4 h-4" /> Widget Ekle
         </button>
+        {saveError && (
+          <span className="text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded-md max-w-xs truncate" title={saveError}>
+            ⚠ {saveError}
+          </span>
+        )}
         <button
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
