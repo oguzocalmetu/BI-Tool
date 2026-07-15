@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, X, Check, AlertCircle, Loader2, Link2, ChevronRight, Trash2 } from 'lucide-react'
-import { api } from '@/lib/api'
+import api from '@/lib/api'
 import type { Connection, ConnectionType } from '@/types'
 
 // ─── Connector catalog ────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import api from '@/lib/api'
 import type { Widget, WidgetType, ChartConfig, QueryResult } from '@/types'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────

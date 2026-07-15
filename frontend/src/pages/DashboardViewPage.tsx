@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import GridLayout, { Layout } from 'react-grid-layout'
@@ -18,20 +18,23 @@ export default function DashboardViewPage() {
   const [editLayout, setEditLayout] = useState<Layout[]>([])
   const [layoutChanged, setLayoutChanged] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<any>({
     queryKey: ['dashboard-detail', id],
     queryFn: () => api.get(`/dashboards/${id}`).then(r => r.data),
-    onSuccess: (d: any) => {
-      const widgets: Widget[] = d?.widgets || []
-      setEditLayout(widgets.map(w => ({
+  })
+
+  useEffect(() => {
+    const ws: Widget[] = data?.widgets || []
+    if (ws.length > 0) {
+      setEditLayout(ws.map((w: Widget) => ({
         i: String(w.id),
         x: w.position_json?.x ?? 0,
         y: w.position_json?.y ?? 0,
         w: w.position_json?.w ?? 4,
         h: w.position_json?.h ?? 4,
       })))
-    },
-  })
+    }
+  }, [data])
 
   const dashboard = data?.dashboard
   const widgets: Widget[] = data?.widgets || []
