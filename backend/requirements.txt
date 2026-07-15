@@ -6,7 +6,7 @@ alembic==1.13.1
 pydantic==2.7.1
 pydantic-settings==2.3.0
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+passlib[bcrypt]
 python-multipart==0.0.9
 celery[redis]==5.4.0
 redis[asyncio]==5.0.6
@@ -31,3 +31,4 @@ aioredis==2.0.1
 # clickhouse-connect==0.7.19  # ClickHouse
 # aiosqlite==0.20.0         # SQLite async
 # snowflake-connector-python==3.11.0  # Snowflake
+bcrypt==4.0.1
