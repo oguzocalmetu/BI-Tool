@@ -7,6 +7,7 @@ from app.models.ai_log import BiAiPrompt
 from app.models.semantic import BiSemanticMetric, BiSemanticDimension
 from app.core.exceptions import NotFoundException
 from app.schemas.dashboard import DashboardCreate
+from app.config import settings
 from app.schemas.ai import AIGenerateRequest, AIDashboardDraft, AISaveRequest
 from app.services.query_service import execute_widget_query
 import json
