@@ -215,16 +215,25 @@ async def widget_query(
         select(BiDashboard).where(BiDashboard.id == widget.dashboard_id)
     )
     dashboard = dash_result.scalar_one_or_none()
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard bulunamadı")
+
+    if not dashboard.dataset_id:
+        raise HTTPException(status_code=400, detail="Bu dashboard'a dataset bağlanmamış. Builder'da dataset seçin.")
 
     ds_result = await db.execute(
         select(BiDataset).where(BiDataset.id == dashboard.dataset_id)
     )
     dataset = ds_result.scalar_one_or_none()
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset bulunamadı")
 
     conn_result = await db.execute(
         select(BiConnection).where(BiConnection.id == dataset.connection_id)
     )
     connection = conn_result.scalar_one_or_none()
+    if not connection:
+        raise HTTPException(status_code=400, detail="Dataset'e bağlı bir bağlantı bulunamadı")
 
     return await execute_widget_query(widget.query_sql, connection, params or {})
 

@@ -48,14 +48,17 @@ function buildOption(type: WidgetType, result: QueryResult, cfg: ChartConfig): o
     // ── column (vertical bar) ──────────────────────────────────────────────
     case 'column':
     case 'bar_chart': {
-      const cats = records.map(r => r[xk])
+      // resolve keys: fall back to first/second column if configured key not in data
+      const resolvedXk = (xk && records[0] && xk in records[0]) ? xk : columns[0]
+      const resolvedYk = (yk && records[0] && yk in records[0]) ? yk : columns[1] || columns[0]
+      const cats = records.map(r => String(r[resolvedXk] ?? ''))
       return {
         color: PALETTE,
         grid: baseGrid,
         tooltip: baseTip,
         xAxis: { type: 'category', data: cats, axisLabel: { fontSize: 11, rotate: cats.length > 8 ? 30 : 0 } },
         yAxis: { type: 'value', axisLabel: { fontSize: 11 } },
-        series: [{ type: 'bar', data: records.map(r => r[yk]), barMaxWidth: 48, itemStyle: { color, borderRadius: [3,3,0,0] } }],
+        series: [{ type: 'bar', data: records.map(r => r[resolvedYk]), barMaxWidth: 48, itemStyle: { color, borderRadius: [3,3,0,0] } }],
       }
     }
 
@@ -82,14 +85,16 @@ function buildOption(type: WidgetType, result: QueryResult, cfg: ChartConfig): o
     // ── bar (horizontal) ──────────────────────────────────────────────────
     case 'bar':
     case 'horizontal_bar_chart': {
-      const sorted = [...records].sort((a, b) => Number(b[yk]) - Number(a[yk]))
+      const resolvedXk = (xk && records[0] && xk in records[0]) ? xk : columns[0]
+      const resolvedYk = (yk && records[0] && yk in records[0]) ? yk : columns[1] || columns[0]
+      const sorted = [...records].sort((a, b) => Number(b[resolvedYk]) - Number(a[resolvedYk]))
       return {
         color: PALETTE,
         grid: { top: 10, right: 24, bottom: 10, left: 16, containLabel: true },
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'value', axisLabel: { fontSize: 11 } },
-        yAxis: { type: 'category', data: sorted.map(r => r[xk]), axisLabel: { fontSize: 11, width: 120, overflow: 'truncate' } },
-        series: [{ type: 'bar', data: sorted.map(r => r[yk]), barMaxWidth: 32, itemStyle: { color, borderRadius: [0,3,3,0] } }],
+        yAxis: { type: 'category', data: sorted.map(r => String(r[resolvedXk] ?? '')), axisLabel: { fontSize: 11, width: 120, overflow: 'truncate' } },
+        series: [{ type: 'bar', data: sorted.map(r => r[resolvedYk]), barMaxWidth: 32, itemStyle: { color, borderRadius: [0,3,3,0] } }],
       }
     }
 
@@ -562,10 +567,11 @@ export default function ChartWidget({ widget, filterParams, previewResult }: Cha
   }
 
   if (error || (!result && !previewResult)) {
+    const errMsg = (error as any)?.response?.data?.detail || (error as any)?.message || 'Sorgu hatası'
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 text-red-400">
-        <AlertCircle className="w-5 h-5" />
-        <span className="text-xs">Query error</span>
+      <div className="h-full flex flex-col items-center justify-center gap-2 text-red-400 px-3 text-center">
+        <AlertCircle className="w-5 h-5 flex-shrink-0" />
+        <span className="text-xs">{errMsg}</span>
       </div>
     )
   }
