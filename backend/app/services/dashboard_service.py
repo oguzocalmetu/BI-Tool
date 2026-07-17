@@ -1,3 +1,4 @@
+import re
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.models.dashboard import BiDashboard, BiDashboardWidget, BiDashboardFilter, BiDashboardVersion
@@ -203,7 +204,9 @@ async def generate_ai_dashboard(
                     from app.connectors.registry import connector_registry
                     connector = connector_registry.get_connector(connection)
                     test_sql = val.sanitized_sql.replace("{start_date}", "2020-01-01").replace("{end_date}", "2099-12-31")
-                    result = await connector.execute_query(test_sql + " LIMIT 1", timeout=10)
+                    # Strip existing LIMIT then add test limit
+                    clean_sql = re.sub(r"\bLIMIT\s+\d+\b", "", test_sql, flags=re.IGNORECASE).strip()
+                    result = await connector.execute_query(clean_sql + " LIMIT 1", timeout=10)
                     valid_widgets.append(w)
                 except Exception as e:
                     warnings.append(f"Widget '{w.get('title')}' query warning: {str(e)[:100]}")
