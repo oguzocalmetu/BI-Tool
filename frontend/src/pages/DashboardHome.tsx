@@ -34,7 +34,7 @@ export default function DashboardHome() {
     },
     {
       title: 'Manuel Builder',
-      desc: 'Sürükle-bırak ile istediğiniz dashboard'ı kendiniz tasarlayın',
+      desc: "Sürükle-bırak ile istediğiniz dashboard'ı kendiniz tasarlayın",
       icon: PenLine,
       gradient: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
       link: '/builder',
