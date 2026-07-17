@@ -22,7 +22,7 @@ async def _call_groq(system: str, user: str) -> str:
         resp = await client.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": "llama3-70b-8192",
+            json={"model": "llama-3.3-70b-versatile",
                   "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
                   "temperature": 0.3, "max_tokens": 3000},
         )
